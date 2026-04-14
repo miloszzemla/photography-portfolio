@@ -8,7 +8,7 @@ export function usePhotoNavigation() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const progress = useMotionValue(0);
   const target = useRef(0);
-  const snapTimer = useRef<NodeJS.Timeout>();
+  const snapTimer = useRef<NodeJS.Timeout>(undefined);
 
   const goTo = useCallback((index: number) => {
     const clamped = Math.max(0, Math.min(photos.length - 1, index));
