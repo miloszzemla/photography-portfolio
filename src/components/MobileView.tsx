@@ -1,7 +1,9 @@
 "use client";
 
+import { useState, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Photo } from "@/data/photos";
+import { photos } from "@/data/photos";
 import { MobileFilmstrip } from "./MobileFilmstrip";
 import Image from "next/image";
 
@@ -12,9 +14,53 @@ interface MobileViewProps {
   onSelect: (index: number) => void;
 }
 
+const slideVariants = {
+  enter: (dir: number) => ({
+    x: dir > 0 ? "60%" : "-60%",
+    opacity: 0,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+  },
+  exit: (dir: number) => ({
+    x: dir > 0 ? "-60%" : "60%",
+    opacity: 0,
+  }),
+};
+
 export function MobileView({ currentIndex, currentPhoto, total, onSelect }: MobileViewProps) {
+  const [direction, setDirection] = useState(0);
+  const touchStart = useRef(0);
+
+  const goNext = () => {
+    if (currentIndex < photos.length - 1) {
+      setDirection(1);
+      onSelect(currentIndex + 1);
+    }
+  };
+
+  const goPrev = () => {
+    if (currentIndex > 0) {
+      setDirection(-1);
+      onSelect(currentIndex - 1);
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStart.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const diff = touchStart.current - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) goNext();
+      else goPrev();
+    }
+  };
+
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col min-h-svh bg-white">
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <div className="flex items-center gap-2">
@@ -23,15 +69,7 @@ export function MobileView({ currentIndex, currentPhoto, total, onSelect }: Mobi
           </span>
           <span className="text-neutral-300 font-mono text-[10px]">+</span>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-neutral-500">
-            View Work
-          </span>
-          <div className="w-5 h-4 flex flex-col justify-center gap-[3px]">
-            <div className="w-full h-[1.5px] bg-neutral-800" />
-            <div className="w-full h-[1.5px] bg-neutral-800" />
-          </div>
-        </div>
+        <span className="text-neutral-300 font-mono text-[10px]">+</span>
       </div>
 
       {/* Location + counter */}
@@ -40,17 +78,30 @@ export function MobileView({ currentIndex, currentPhoto, total, onSelect }: Mobi
           <span className="font-mono text-[10px] uppercase tracking-widest text-neutral-400">
             Location:
           </span>
-          <span className="font-sans text-sm font-semibold text-neutral-800">
-            {currentPhoto.location}
-          </span>
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={currentIndex}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="font-sans text-sm font-semibold text-neutral-800"
+            >
+              {currentPhoto.location}
+            </motion.span>
+          </AnimatePresence>
         </div>
         <span className="font-mono text-[11px] text-neutral-500 mt-2">
           ({currentIndex + 1}/{total})
         </span>
       </div>
 
-      {/* Main photo */}
-      <div className="flex-1 flex items-center justify-center px-4 py-4 relative overflow-hidden">
+      {/* Main photo — swipeable */}
+      <div
+        className="flex-1 flex items-center justify-center px-4 py-4 relative overflow-hidden"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         {/* Viewfinder brackets */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div className="relative" style={{ width: 40, height: 28 }}>
@@ -59,13 +110,15 @@ export function MobileView({ currentIndex, currentPhoto, total, onSelect }: Mobi
           </div>
         </div>
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" custom={direction}>
           <motion.div
             key={currentIndex}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
+            custom={direction}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.4, ease: [0.22, 0.61, 0.36, 1] }}
             className="relative w-full"
             style={{ aspectRatio: "4/3" }}
           >
