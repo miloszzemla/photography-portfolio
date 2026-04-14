@@ -1,3 +1,13 @@
+const CLOUD_NAME = "devx75lrj";
+
+// Helper: generuje Cloudinary URL z automatyczną optymalizacją
+function cloudImg(path: string, width: number, height?: number): string {
+  const transforms = height
+    ? `w_${width},h_${height},c_fill,q_auto,f_auto`
+    : `w_${width},q_auto,f_auto`;
+  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/${transforms}/${path}`;
+}
+
 export interface Photo {
   id: number;
   src: string;
@@ -12,9 +22,19 @@ export interface Photo {
   timecode: string;
 }
 
+// ============================================================
+// JAK DODAĆ SWOJE ZDJĘCIA:
+// 1. Wrzuć zdjęcie do Cloudinary (Media Library → Upload)
+//    np. do folderu "photography/" jako "bali.jpg"
+// 2. Zamień src/thumbnail na:
+//    src: cloudImg("photography/bali.jpg", 1600),
+//    thumbnail: cloudImg("photography/bali.jpg", 150, 200),
+// ============================================================
+
 export const photos: Photo[] = [
   {
     id: 1,
+    // TODO: zamień na cloudImg("photography/NAZWA.jpg", 1600)
     src: "https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=1600&q=80",
     thumbnail: "https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=150&h=200&fit=crop&q=60",
     location: "Bali, Indonesia",
