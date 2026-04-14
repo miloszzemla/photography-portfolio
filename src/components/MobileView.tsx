@@ -16,7 +16,7 @@ interface MobileViewProps {
 
 const slideVariants = {
   enter: (dir: number) => ({
-    y: dir > 0 ? "50%" : "-50%",
+    y: dir > 0 ? "-50%" : "50%",
     opacity: 0,
   }),
   center: {
@@ -24,7 +24,7 @@ const slideVariants = {
     opacity: 1,
   },
   exit: (dir: number) => ({
-    y: dir > 0 ? "-50%" : "50%",
+    y: dir > 0 ? "50%" : "-50%",
     opacity: 0,
   }),
 };
