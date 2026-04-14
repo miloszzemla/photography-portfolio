@@ -21,7 +21,7 @@ export function TopBar({ currentIndex, total, timecode, location }: TopBarProps)
             &larr;
           </button>
           <span>{clock}</span>
-          <span className="text-neutral-400">Warsaw</span>
+
         </div>
 
         <div className="flex items-center gap-3">

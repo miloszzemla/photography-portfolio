@@ -12,9 +12,14 @@
 }
 
 body {
-  overflow: hidden;
   background: #ffffff;
   color: #1a1a1a;
+}
+
+@media (pointer: fine) {
+  body {
+    overflow: hidden;
+  }
 }
 
 ::selection {
