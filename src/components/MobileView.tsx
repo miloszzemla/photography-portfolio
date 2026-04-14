@@ -1,46 +1,50 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { useMotionValue, useTransform, motion, animate, type MotionValue } from "framer-motion";
 import type { Photo } from "@/data/photos";
 import { photos } from "@/data/photos";
 import { MobileFilmstrip } from "./MobileFilmstrip";
 import Image from "next/image";
 
-interface MobileViewProps {
+export function MobileView({
+  currentIndex: externalIndex,
+  currentPhoto: _,
+  total,
+  onSelect,
+}: {
   currentIndex: number;
   currentPhoto: Photo;
   total: number;
   onSelect: (index: number) => void;
-}
-
-export function MobileView({ currentIndex, currentPhoto, total, onSelect }: MobileViewProps) {
-  const progress = useMotionValue(currentIndex);
+}) {
+  const progress = useMotionValue(externalIndex);
+  const [displayIndex, setDisplayIndex] = useState(externalIndex);
   const touchStartY = useRef(0);
   const touchStartProgress = useRef(0);
   const lastTouchY = useRef(0);
   const lastTouchTime = useRef(0);
   const velocity = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isTouching = useRef(false);
 
-  // Sync when thumbnail is tapped
+  // External index changed (e.g. thumbnail tap) — animate to it
   useEffect(() => {
-    animate(progress, currentIndex, { duration: 0.6, ease: [0.22, 0.61, 0.36, 1] });
-  }, [currentIndex, progress]);
+    if (!isTouching.current) {
+      animate(progress, externalIndex, { duration: 0.6, ease: [0.22, 0.61, 0.36, 1] });
+      setDisplayIndex(externalIndex);
+    }
+  }, [externalIndex, progress]);
 
-  // Update currentIndex when progress settles
+  // Track display index from progress (lightweight — only rounds)
   useEffect(() => {
     const unsubscribe = progress.on("change", (v) => {
-      // Only update on settled values (near integer)
       const rounded = Math.round(v);
-      if (Math.abs(v - rounded) < 0.01) {
-        const clamped = Math.max(0, Math.min(photos.length - 1, rounded));
-        // Use functional-style check to avoid unnecessary updates
-        onSelect(clamped);
-      }
+      const clamped = Math.max(0, Math.min(photos.length - 1, rounded));
+      setDisplayIndex(clamped);
     });
     return unsubscribe;
-  }, [progress, onSelect]);
+  }, [progress]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -48,7 +52,7 @@ export function MobileView({ currentIndex, currentPhoto, total, onSelect }: Mobi
 
     const handleTouchStart = (e: TouchEvent) => {
       e.preventDefault();
-      // Stop any running animation
+      isTouching.current = true;
       progress.stop();
       touchStartY.current = e.touches[0].clientY;
       touchStartProgress.current = progress.get();
@@ -62,7 +66,6 @@ export function MobileView({ currentIndex, currentPhoto, total, onSelect }: Mobi
       const currentY = e.touches[0].clientY;
       const now = Date.now();
 
-      // Track velocity
       const dt = now - lastTouchTime.current;
       if (dt > 0) {
         velocity.current = (lastTouchY.current - currentY) / dt;
@@ -70,30 +73,31 @@ export function MobileView({ currentIndex, currentPhoto, total, onSelect }: Mobi
       lastTouchY.current = currentY;
       lastTouchTime.current = now;
 
-      // Map finger movement to progress (screen height = ~1.5 photos)
       const deltaY = touchStartY.current - currentY;
       const screenH = window.innerHeight;
-      const progressDelta = (deltaY / screenH) * 1.5;
+      const progressDelta = (deltaY / screenH) * 1.8;
       const newProgress = Math.max(0, Math.min(photos.length - 1, touchStartProgress.current + progressDelta));
       progress.set(newProgress);
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
       e.preventDefault();
-      const currentProgress = progress.get();
+      isTouching.current = false;
 
-      // Use velocity for momentum — project where it would land
-      const momentumDistance = velocity.current * 0.15; // pixels/ms * factor
-      const projected = currentProgress + momentumDistance;
+      const momentumDistance = velocity.current * 0.2;
+      const projected = progress.get() + momentumDistance;
       const snapped = Math.round(projected);
       const clamped = Math.max(0, Math.min(photos.length - 1, snapped));
 
       animate(progress, clamped, {
         type: "spring",
-        stiffness: 200,
+        stiffness: 250,
         damping: 25,
-        velocity: velocity.current * 0.5,
+        velocity: velocity.current * 0.4,
       });
+
+      // Notify parent only once after snap
+      onSelect(clamped);
     };
 
     el.addEventListener("touchstart", handleTouchStart, { passive: false });
@@ -105,7 +109,9 @@ export function MobileView({ currentIndex, currentPhoto, total, onSelect }: Mobi
       el.removeEventListener("touchmove", handleTouchMove);
       el.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [progress]);
+  }, [progress, onSelect]);
+
+  const displayPhoto = photos[displayIndex];
 
   return (
     <div
@@ -131,17 +137,16 @@ export function MobileView({ currentIndex, currentPhoto, total, onSelect }: Mobi
             Location:
           </span>
           <span className="font-sans text-sm font-semibold text-neutral-800">
-            {currentPhoto.location}
+            {displayPhoto.location}
           </span>
         </div>
         <span className="font-mono text-[11px] text-neutral-500 mt-2">
-          ({currentIndex + 1}/{total})
+          ({displayIndex + 1}/{total})
         </span>
       </div>
 
-      {/* Main photo — same continuous filmstrip as desktop */}
+      {/* Main photo — continuous filmstrip */}
       <div className="flex-1 relative overflow-hidden mx-4">
-        {/* Viewfinder brackets */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div className="relative" style={{ width: 40, height: 28 }}>
             <div className="absolute left-0 top-0 w-2 h-full border-l border-t border-b border-neutral-400" />
@@ -156,7 +161,7 @@ export function MobileView({ currentIndex, currentPhoto, total, onSelect }: Mobi
 
       {/* Thumbnail strip */}
       <div className="py-2 z-20">
-        <MobileFilmstrip currentIndex={currentIndex} onSelect={onSelect} />
+        <MobileFilmstrip currentIndex={displayIndex} onSelect={onSelect} />
       </div>
 
       {/* Footer */}
@@ -166,12 +171,7 @@ export function MobileView({ currentIndex, currentPhoto, total, onSelect }: Mobi
           <span className="text-neutral-400">M.Z.</span>
           <span>Photographer</span>
         </div>
-        <a
-          href="https://instagram.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-neutral-600"
-        >
+        <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="text-neutral-600">
           Instagram
         </a>
       </div>
@@ -189,13 +189,10 @@ function MobilePhotoSlide({
   progress: MotionValue<number>;
 }) {
   const y = useTransform(progress, [index - 1, index, index + 1], ["100%", "0%", "-100%"]);
-  const opacity = useTransform(progress, [index - 0.8, index - 0.3, index, index + 0.3, index + 0.8], [0, 1, 1, 1, 0]);
+  const opacity = useTransform(progress, [index - 0.6, index, index + 0.6], [0, 1, 0]);
 
   return (
-    <motion.div
-      className="absolute inset-0"
-      style={{ y, opacity }}
-    >
+    <motion.div className="absolute inset-0" style={{ y, opacity }}>
       <Image
         src={photo.src}
         alt={photo.location}
