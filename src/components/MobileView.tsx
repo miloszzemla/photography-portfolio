@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useRef, useEffect, useCallback } from "react";
+import { useMotionValue, useTransform, motion, animate, type MotionValue } from "framer-motion";
 import type { Photo } from "@/data/photos";
 import { photos } from "@/data/photos";
 import { MobileFilmstrip } from "./MobileFilmstrip";
@@ -14,55 +14,52 @@ interface MobileViewProps {
   onSelect: (index: number) => void;
 }
 
-const slideVariants = {
-  enter: (dir: number) => ({
-    y: dir > 0 ? "50%" : "-50%",
-    opacity: 0,
-  }),
-  center: {
-    y: 0,
-    opacity: 1,
-  },
-  exit: (dir: number) => ({
-    y: dir > 0 ? "-50%" : "50%",
-    opacity: 0,
-  }),
-};
-
 export function MobileView({ currentIndex, currentPhoto, total, onSelect }: MobileViewProps) {
-  const [direction, setDirection] = useState(0);
+  const progress = useMotionValue(currentIndex);
   const touchStart = useRef(0);
+  const touchDelta = useRef(0);
+  const target = useRef(currentIndex);
 
-  const goNext = () => {
-    if (currentIndex < photos.length - 1) {
-      setDirection(1);
-      onSelect(currentIndex + 1);
-    }
-  };
+  // Sync when thumbnail is tapped
+  useEffect(() => {
+    target.current = currentIndex;
+    animate(progress, currentIndex, { duration: 0.6, ease: [0.22, 0.61, 0.36, 1] });
+  }, [currentIndex, progress]);
 
-  const goPrev = () => {
-    if (currentIndex > 0) {
-      setDirection(-1);
-      onSelect(currentIndex - 1);
-    }
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
     touchStart.current = e.touches[0].clientY;
-  };
+    touchDelta.current = 0;
+  }, []);
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    const diff = touchStart.current - e.changedTouches[0].clientY;
-    if (Math.abs(diff) > 50) {
-      if (diff > 0) goNext();  // swipe up = next
-      else goPrev();           // swipe down = prev
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    e.preventDefault();
+    const delta = touchStart.current - e.touches[0].clientY;
+    touchDelta.current = delta;
+    const sensitivity = 0.003;
+    const newTarget = Math.max(0, Math.min(photos.length - 1, currentIndex + delta * sensitivity));
+    progress.set(newTarget);
+  }, [currentIndex, progress]);
+
+  const handleTouchEnd = useCallback(() => {
+    // Snap to nearest
+    const snapped = Math.round(progress.get());
+    const clamped = Math.max(0, Math.min(photos.length - 1, snapped));
+    target.current = clamped;
+    animate(progress, clamped, { duration: 0.4, ease: [0.22, 0.61, 0.36, 1] });
+    if (clamped !== currentIndex) {
+      onSelect(clamped);
     }
-  };
+  }, [progress, currentIndex, onSelect]);
 
   return (
-    <div className="flex flex-col min-h-svh bg-white">
+    <div
+      className="fixed inset-0 flex flex-col bg-white touch-none"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       {/* Top bar */}
-      <div className="flex items-center justify-center px-4 pt-4 pb-2">
+      <div className="flex items-center justify-center px-4 pt-4 pb-2 z-20">
         <div className="flex items-center gap-3">
           <span className="text-neutral-300 font-mono text-[10px]">+</span>
           <span className="text-neutral-800 normal-case tracking-[0.2em] text-[13px] font-light font-mono">
@@ -73,35 +70,22 @@ export function MobileView({ currentIndex, currentPhoto, total, onSelect }: Mobi
       </div>
 
       {/* Location + counter */}
-      <div className="flex items-start justify-between px-4 pt-4 pb-2">
+      <div className="flex items-start justify-between px-4 pt-2 pb-2 z-20">
         <div className="flex flex-col">
           <span className="font-mono text-[10px] uppercase tracking-widest text-neutral-400">
             Location:
           </span>
-          <AnimatePresence mode="wait">
-            <motion.span
-              key={currentIndex}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="font-sans text-sm font-semibold text-neutral-800"
-            >
-              {currentPhoto.location}
-            </motion.span>
-          </AnimatePresence>
+          <span className="font-sans text-sm font-semibold text-neutral-800">
+            {currentPhoto.location}
+          </span>
         </div>
         <span className="font-mono text-[11px] text-neutral-500 mt-2">
           ({currentIndex + 1}/{total})
         </span>
       </div>
 
-      {/* Main photo — swipeable */}
-      <div
-        className="flex-1 flex items-center justify-center px-4 py-4 relative overflow-hidden"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
+      {/* Main photo — same continuous filmstrip as desktop */}
+      <div className="flex-1 relative overflow-hidden mx-4">
         {/* Viewfinder brackets */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div className="relative" style={{ width: 40, height: 28 }}>
@@ -110,37 +94,18 @@ export function MobileView({ currentIndex, currentPhoto, total, onSelect }: Mobi
           </div>
         </div>
 
-        <AnimatePresence mode="wait" custom={direction}>
-          <motion.div
-            key={currentIndex}
-            custom={direction}
-            variants={slideVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{ duration: 0.4, ease: [0.22, 0.61, 0.36, 1] }}
-            className="relative w-full"
-            style={{ aspectRatio: "4/3" }}
-          >
-            <Image
-              src={currentPhoto.src}
-              alt={currentPhoto.location}
-              fill
-              className="object-contain"
-              sizes="95vw"
-              priority
-            />
-          </motion.div>
-        </AnimatePresence>
+        {photos.map((photo, i) => (
+          <MobilePhotoSlide key={photo.id} photo={photo} index={i} progress={progress} />
+        ))}
       </div>
 
-      {/* Thumbnail strip — irregular sizes */}
-      <div className="py-2">
+      {/* Thumbnail strip */}
+      <div className="py-2 z-20">
         <MobileFilmstrip currentIndex={currentIndex} onSelect={onSelect} />
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-neutral-500">
+      <div className="flex items-center justify-between px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-neutral-500 z-20">
         <span>&copy;2026</span>
         <div className="flex items-center gap-2">
           <span className="text-neutral-400">M.Z.</span>
@@ -156,5 +121,34 @@ export function MobileView({ currentIndex, currentPhoto, total, onSelect }: Mobi
         </a>
       </div>
     </div>
+  );
+}
+
+function MobilePhotoSlide({
+  photo,
+  index,
+  progress,
+}: {
+  photo: Photo;
+  index: number;
+  progress: MotionValue<number>;
+}) {
+  const y = useTransform(progress, [index - 1, index, index + 1], ["100%", "0%", "-100%"]);
+  const opacity = useTransform(progress, [index - 0.8, index - 0.3, index, index + 0.3, index + 0.8], [0, 1, 1, 1, 0]);
+
+  return (
+    <motion.div
+      className="absolute inset-0"
+      style={{ y, opacity }}
+    >
+      <Image
+        src={photo.src}
+        alt={photo.location}
+        fill
+        className="object-contain"
+        sizes="95vw"
+        priority={index < 3}
+      />
+    </motion.div>
   );
 }
