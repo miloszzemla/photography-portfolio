@@ -16,47 +16,102 @@ interface MobileViewProps {
 
 export function MobileView({ currentIndex, currentPhoto, total, onSelect }: MobileViewProps) {
   const progress = useMotionValue(currentIndex);
-  const touchStart = useRef(0);
-  const touchDelta = useRef(0);
-  const target = useRef(currentIndex);
+  const touchStartY = useRef(0);
+  const touchStartProgress = useRef(0);
+  const lastTouchY = useRef(0);
+  const lastTouchTime = useRef(0);
+  const velocity = useRef(0);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Sync when thumbnail is tapped
   useEffect(() => {
-    target.current = currentIndex;
     animate(progress, currentIndex, { duration: 0.6, ease: [0.22, 0.61, 0.36, 1] });
   }, [currentIndex, progress]);
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    touchStart.current = e.touches[0].clientY;
-    touchDelta.current = 0;
-  }, []);
+  // Update currentIndex when progress settles
+  useEffect(() => {
+    const unsubscribe = progress.on("change", (v) => {
+      // Only update on settled values (near integer)
+      const rounded = Math.round(v);
+      if (Math.abs(v - rounded) < 0.01) {
+        const clamped = Math.max(0, Math.min(photos.length - 1, rounded));
+        // Use functional-style check to avoid unnecessary updates
+        onSelect(clamped);
+      }
+    });
+    return unsubscribe;
+  }, [progress, onSelect]);
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    e.preventDefault();
-    const delta = touchStart.current - e.touches[0].clientY;
-    touchDelta.current = delta;
-    const sensitivity = 0.003;
-    const newTarget = Math.max(0, Math.min(photos.length - 1, currentIndex + delta * sensitivity));
-    progress.set(newTarget);
-  }, [currentIndex, progress]);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
 
-  const handleTouchEnd = useCallback(() => {
-    // Snap to nearest
-    const snapped = Math.round(progress.get());
-    const clamped = Math.max(0, Math.min(photos.length - 1, snapped));
-    target.current = clamped;
-    animate(progress, clamped, { duration: 0.4, ease: [0.22, 0.61, 0.36, 1] });
-    if (clamped !== currentIndex) {
-      onSelect(clamped);
-    }
-  }, [progress, currentIndex, onSelect]);
+    const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      // Stop any running animation
+      progress.stop();
+      touchStartY.current = e.touches[0].clientY;
+      touchStartProgress.current = progress.get();
+      lastTouchY.current = e.touches[0].clientY;
+      lastTouchTime.current = Date.now();
+      velocity.current = 0;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      const currentY = e.touches[0].clientY;
+      const now = Date.now();
+
+      // Track velocity
+      const dt = now - lastTouchTime.current;
+      if (dt > 0) {
+        velocity.current = (lastTouchY.current - currentY) / dt;
+      }
+      lastTouchY.current = currentY;
+      lastTouchTime.current = now;
+
+      // Map finger movement to progress (screen height = ~1.5 photos)
+      const deltaY = touchStartY.current - currentY;
+      const screenH = window.innerHeight;
+      const progressDelta = (deltaY / screenH) * 1.5;
+      const newProgress = Math.max(0, Math.min(photos.length - 1, touchStartProgress.current + progressDelta));
+      progress.set(newProgress);
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      const currentProgress = progress.get();
+
+      // Use velocity for momentum — project where it would land
+      const momentumDistance = velocity.current * 0.15; // pixels/ms * factor
+      const projected = currentProgress + momentumDistance;
+      const snapped = Math.round(projected);
+      const clamped = Math.max(0, Math.min(photos.length - 1, snapped));
+
+      animate(progress, clamped, {
+        type: "spring",
+        stiffness: 200,
+        damping: 25,
+        velocity: velocity.current * 0.5,
+      });
+    };
+
+    el.addEventListener("touchstart", handleTouchStart, { passive: false });
+    el.addEventListener("touchmove", handleTouchMove, { passive: false });
+    el.addEventListener("touchend", handleTouchEnd, { passive: false });
+
+    return () => {
+      el.removeEventListener("touchstart", handleTouchStart);
+      el.removeEventListener("touchmove", handleTouchMove);
+      el.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [progress]);
 
   return (
     <div
-      className="fixed inset-0 flex flex-col bg-white touch-none"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      ref={containerRef}
+      className="fixed inset-0 flex flex-col bg-white"
+      style={{ touchAction: "none" }}
     >
       {/* Top bar */}
       <div className="flex items-center justify-center px-4 pt-4 pb-2 z-20">
