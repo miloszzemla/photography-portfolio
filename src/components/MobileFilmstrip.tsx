@@ -9,7 +9,6 @@ interface MobileFilmstripProps {
   onSelect: (index: number) => void;
 }
 
-// Irregular sizes for visual interest
 const SIZES = [
   { w: 72, h: 90 },
   { w: 56, h: 70 },
@@ -30,11 +29,28 @@ export function MobileFilmstrip({ currentIndex, onSelect }: MobileFilmstripProps
     containerRef.current.scrollTo({ left: scrollLeft, behavior: "smooth" });
   }, [currentIndex]);
 
+  // Stop touch events from bubbling to parent (which handles vertical swipe)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const stop = (e: TouchEvent) => e.stopPropagation();
+    el.addEventListener("touchstart", stop, { passive: true });
+    el.addEventListener("touchmove", stop, { passive: true });
+    el.addEventListener("touchend", stop, { passive: true });
+
+    return () => {
+      el.removeEventListener("touchstart", stop);
+      el.removeEventListener("touchmove", stop);
+      el.removeEventListener("touchend", stop);
+    };
+  }, []);
+
   return (
     <div
       ref={containerRef}
       className="flex md:hidden gap-1.5 overflow-x-auto items-end px-3 pb-1"
-      style={{ scrollbarWidth: "none" }}
+      style={{ scrollbarWidth: "none", touchAction: "pan-x" }}
     >
       {photos.map((photo, index) => {
         const size = SIZES[index % SIZES.length];
