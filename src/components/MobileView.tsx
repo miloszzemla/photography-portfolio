@@ -28,15 +28,7 @@ export function MobileView({
   const containerRef = useRef<HTMLDivElement>(null);
   const isTouching = useRef(false);
 
-  // External index changed (e.g. thumbnail tap) — animate only if not already there
   const lastSnapped = useRef(externalIndex);
-  useEffect(() => {
-    if (!isTouching.current && externalIndex !== lastSnapped.current) {
-      lastSnapped.current = externalIndex;
-      animate(progress, externalIndex, { duration: 0.6, ease: [0.22, 0.61, 0.36, 1] });
-      setDisplayIndex(externalIndex);
-    }
-  }, [externalIndex, progress]);
 
   // Track display index from progress (lightweight — only rounds)
   useEffect(() => {
@@ -98,8 +90,6 @@ export function MobileView({
         damping: 25,
         velocity: velocity.current * 0.4,
       });
-
-      onSelect(clamped);
     };
 
     el.addEventListener("touchstart", handleTouchStart, { passive: false });
@@ -111,7 +101,7 @@ export function MobileView({
       el.removeEventListener("touchmove", handleTouchMove);
       el.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [progress, onSelect]);
+  }, [progress]);
 
   const displayPhoto = photos[displayIndex];
 
@@ -163,7 +153,10 @@ export function MobileView({
 
       {/* Thumbnail strip */}
       <div className="py-2 z-20">
-        <MobileFilmstrip currentIndex={displayIndex} onSelect={onSelect} />
+        <MobileFilmstrip currentIndex={displayIndex} onSelect={(i) => {
+          lastSnapped.current = i;
+          animate(progress, i, { duration: 0.6, ease: [0.22, 0.61, 0.36, 1] });
+        }} />
       </div>
 
       {/* Footer */}
