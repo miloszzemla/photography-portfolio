@@ -28,9 +28,11 @@ export function MobileView({
   const containerRef = useRef<HTMLDivElement>(null);
   const isTouching = useRef(false);
 
-  // External index changed (e.g. thumbnail tap) — animate to it
+  // External index changed (e.g. thumbnail tap) — animate only if not already there
+  const lastSnapped = useRef(externalIndex);
   useEffect(() => {
-    if (!isTouching.current) {
+    if (!isTouching.current && externalIndex !== lastSnapped.current) {
+      lastSnapped.current = externalIndex;
       animate(progress, externalIndex, { duration: 0.6, ease: [0.22, 0.61, 0.36, 1] });
       setDisplayIndex(externalIndex);
     }
@@ -89,6 +91,7 @@ export function MobileView({
       const snapped = Math.round(projected);
       const clamped = Math.max(0, Math.min(photos.length - 1, snapped));
 
+      lastSnapped.current = clamped;
       animate(progress, clamped, {
         type: "spring",
         stiffness: 250,
@@ -96,7 +99,6 @@ export function MobileView({
         velocity: velocity.current * 0.4,
       });
 
-      // Notify parent only once after snap
       onSelect(clamped);
     };
 
