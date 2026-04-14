@@ -16,15 +16,15 @@ interface MobileViewProps {
 
 const slideVariants = {
   enter: (dir: number) => ({
-    x: dir > 0 ? "60%" : "-60%",
+    y: dir > 0 ? "40%" : "-40%",
     opacity: 0,
   }),
   center: {
-    x: 0,
+    y: 0,
     opacity: 1,
   },
   exit: (dir: number) => ({
-    x: dir > 0 ? "-60%" : "60%",
+    y: dir > 0 ? "-40%" : "40%",
     opacity: 0,
   }),
 };
@@ -48,28 +48,28 @@ export function MobileView({ currentIndex, currentPhoto, total, onSelect }: Mobi
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStart.current = e.touches[0].clientX;
+    touchStart.current = e.touches[0].clientY;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    const diff = touchStart.current - e.changedTouches[0].clientX;
+    const diff = touchStart.current - e.changedTouches[0].clientY;
     if (Math.abs(diff) > 50) {
-      if (diff > 0) goNext();
-      else goPrev();
+      if (diff > 0) goNext();  // swipe up = next
+      else goPrev();           // swipe down = prev
     }
   };
 
   return (
     <div className="flex flex-col min-h-svh bg-white">
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2">
-        <div className="flex items-center gap-2">
-          <span className="font-sans text-xs font-semibold uppercase tracking-wider text-neutral-800">
+      <div className="flex items-center justify-center px-4 pt-4 pb-2">
+        <div className="flex items-center gap-3">
+          <span className="text-neutral-300 font-mono text-[10px]">+</span>
+          <span className="text-neutral-800 normal-case tracking-[0.2em] text-[13px] font-light font-mono">
             Milosz Zemla
           </span>
           <span className="text-neutral-300 font-mono text-[10px]">+</span>
         </div>
-        <span className="text-neutral-300 font-mono text-[10px]">+</span>
       </div>
 
       {/* Location + counter */}
